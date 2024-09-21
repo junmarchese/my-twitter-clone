@@ -48,13 +48,14 @@ class Likes(db.Model):
 
     user_id = db.Column(
         db.Integer,
-        db.ForeignKey('users.id', ondelete='cascade')
+        db.ForeignKey('users.id', ondelete='cascade'),
+        primary_key=True
     )
 
     message_id = db.Column(
         db.Integer,
         db.ForeignKey('messages.id', ondelete='cascade'),
-        unique=True
+        primary_key=True
     )
 
 
@@ -103,14 +104,14 @@ class User(db.Model):
         nullable=False,
     )
 
-    messages = db.relationship('Message')
 
     followers = db.relationship(
         "User",
         secondary="follows",
         primaryjoin=(Follows.user_being_followed_id == id),
         secondaryjoin=(Follows.user_following_id == id),
-        backref=db.backref("follows_users", lazy="dynamic"), overlaps="following"
+        # backref=db.backref("follows_users", lazy="dynamic"), overlaps="followed_by,follows_users"
+        back_populates="following"
     )
 
     following = db.relationship(
@@ -118,12 +119,20 @@ class User(db.Model):
         secondary="follows",
         primaryjoin=(Follows.user_following_id == id),
         secondaryjoin=(Follows.user_being_followed_id == id),
-        backref=db.backref("followed_by", lazy="dynamic"), overlaps="followers"
+        # backref=db.backref("followed_by", lazy="dynamic"), overlaps="follows_users,followers"
+        back_populates="followers"
+    )
+
+    messages = db.relationship(
+        'Message',
+        back_populates='user',
+        cascade="all, delete-orphan"
     )
 
     likes = db.relationship(
         'Message',
-        secondary="likes"
+        secondary="likes", 
+        backref='liked_by'
     )
 
     def __repr__(self):
@@ -136,7 +145,7 @@ class User(db.Model):
         return len(found_user_list) == 1
 
     def is_following(self, other_user):
-        """Is this user following `other_use`?"""
+        """Is this user following `other_user`?"""
 
         found_user_list = [user for user in self.following if user == other_user]
         return len(found_user_list) == 1
@@ -208,7 +217,10 @@ class Message(db.Model):
         nullable=False,
     )
 
-    user = db.relationship('User', backref='messages', overlaps='messages')
+    user = db.relationship('User', back_populates='messages')
+
+    def __repr__(self):
+        return f"<Message #{self.id}: {self.text}, User #{self.user_id}>"
 
 
 

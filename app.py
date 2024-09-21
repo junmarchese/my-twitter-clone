@@ -1,11 +1,12 @@
 import os
 
-from flask import Flask, render_template, request, flash, redirect, session, g
-from flask_debugtoolbar import DebugToolbarExtension
+from flask import Flask, render_template, request, flash, redirect, session, g, url_for
+# from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
-from forms import UserAddForm, LoginForm, MessageForm
-from models import db, connect_db, User, Message
+from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
+from models import db, connect_db, User, Message, Likes
+from flask_bcrypt import Bcrypt
 
 CURR_USER_KEY = "curr_user"
 
@@ -19,7 +20,7 @@ def create_app():
     app.config['SQLALCHEMY_ECHO'] = False
     app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = True
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', "it's a secret")
-    toolbar = DebugToolbarExtension(app)
+    # toolbar = DebugToolbarExtension(app)
 
     connect_db(app)
 
@@ -43,9 +44,10 @@ def add_user_to_g():
 
     if CURR_USER_KEY in session:
         g.user = User.query.get(session[CURR_USER_KEY])
-
+        print(f"Logged in as: {g.user.username}")
     else:
         g.user = None
+        print("No user logged in.")
 
 
 def do_login(user):
@@ -74,7 +76,8 @@ def signup():
     """
     form = UserAddForm()
 
-    if form.validate_on_submit():
+    # if form.validate_on_submit():
+    if form.is_submitted() and form.validate():
         try:
             user = User.signup(
                 username=form.username.data,
@@ -102,25 +105,30 @@ def login():
 
     form = LoginForm()
 
-    if form.validate_on_submit():
+    # if form.validate_on_submit():
+    if form.is_submitted() and form.validate():
         user = User.authenticate(form.username.data,
                                  form.password.data)
 
         if user:
             do_login(user)
             flash(f"Hello, {user.username}!", "success")
-            return redirect("/")
-
-        flash("Invalid credentials.", 'danger')
+            return redirect(f"/users/{user.id}")
+        else:
+            flash("Invalid credentials.", 'danger')
 
     return render_template('users/login.html', form=form)
 
 
 @app.route('/logout')
 def logout():
-    """Handle logout of user."""
+    """Handle logout of user and redirects to the login page."""
 
-    # IMPLEMENT THIS
+    do_logout()
+
+    flash("You have successfully logged out.", "success")
+
+    return redirect(url_for('login'))
 
 
 ##############################################################################
@@ -148,7 +156,6 @@ def users_show(user_id):
     """Show user profile."""
 
     user = User.query.get_or_404(user_id)
-    import pdb; pdb.set_trace()
 
     # snagging messages in order from the database;
     # user.messages won't be in order by default
@@ -158,7 +165,11 @@ def users_show(user_id):
                 .order_by(Message.timestamp.desc())
                 .limit(100)
                 .all())
-    return render_template('users/show.html', user=user, messages=messages)
+    
+    # Calculate the number of likes for the user
+    likes_count = len(user.likes)
+
+    return render_template('users/show.html', user=user, messages=messages, likes_count=likes_count)
 
 
 @app.route('/users/<int:user_id>/following')
@@ -214,12 +225,79 @@ def stop_following(follow_id):
 
     return redirect(f"/users/{g.user.id}/following")
 
+@app.route('/users/add_like/<int:message_id>', methods=['POST'])
+def add_like(message_id):
+    """Add a like to a warble."""
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+    
+    # Ensure user cannot like their own warble
+    message = Message.query.get_or_404(message_id)
+    if message.user_id == g.user.id:
+        flash("You cannot like your own warbles!", "danger")
+        return redirect("/")
+    
+    g.user.likes.append(message)
+    db.session.commit()
+
+    return redirect("/")
+
+@app.route('/users/un_like/<int:message_id>', methods=['POST'])
+def un_like(message_id):
+    """Unlike a like from a warble."""
+
+    if not g.user:
+        flash("Access unathorized.", "danger")
+        return redirect("/")
+
+    message = Message.query.get_or_404(message_id)
+    if message in g.user.likes:
+        g.user.likes.remove(message)
+        db.session.commit()
+
+    return redirect("/")
+
+@app.route('/users/<int:user_id>/likes')
+def show_user_liked_warbles(user_id):
+    """Show all warbles liked by the user."""
+
+    user = User.query.get_or_404(user_id)
+    liked_messages = Message.query.join(Likes).filter(Likes.user_id == user_id).all()
+
+    return render_template('users/liked_warbles.html', messages=liked_messages, user=user)
+
 
 @app.route('/users/profile', methods=["GET", "POST"])
-def profile():
+def edit_profile():
     """Update profile for current user."""
 
-    # IMPLEMENT THIS
+    if not g.user:
+        flash("You need to be logged in to access that page.", "danger")
+        return redirect("/")
+    
+    form = UserEditForm(obj=g.user)
+
+    if form.validate_on_submit():
+        if not User.authenticate(g.user.username, form.password.data):
+            flash("Incorrect password.", "danger")
+            return redirect("/")
+        
+        g.user.username = form.username.data
+        g.user.email = form.email.data
+        g.user.image_url = form.image_url.data or "/static/images/default-pic.png"
+        g.user.header_image_url = form.header_image_url.data or "/static/images/warbler-hero.jpg"
+        g.user.bio = form.bio.data
+
+        db.session.commit()
+        flash("Profile updated successfully!", "success")
+        return redirect(f"/users/{g.user.id}")
+    else:
+        if form.errors: 
+            flash("There was an error with your submission.", "danger")
+
+    return render_template('users/edit.html', form=form) 
 
 
 @app.route('/users/delete', methods=["POST"])
@@ -280,7 +358,12 @@ def messages_destroy(message_id):
         flash("Access unauthorized.", "danger")
         return redirect("/")
 
-    msg = Message.query.get(message_id)
+    msg = Message.query.get_or_404(message_id)
+
+    if msg.user_id != g.user.id:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+    
     db.session.delete(msg)
     db.session.commit()
 
@@ -300,13 +383,18 @@ def homepage():
     """
 
     if g.user:
+        following_ids = [f.id for f in g.user.following] + [g.user.id]
+
         messages = (Message
                     .query
+                    .filter(Message.user_id.in_(following_ids))
                     .order_by(Message.timestamp.desc())
                     .limit(100)
                     .all())
+        
+        liked_message_ids = [like.id for like in g.user.likes]
 
-        return render_template('home.html', messages=messages)
+        return render_template('home.html', messages=messages, likes=liked_message_ids)
 
     else:
         return render_template('home-anon.html')

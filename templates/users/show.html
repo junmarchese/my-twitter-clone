@@ -1,12 +1,60 @@
 {% extends 'users/detail.html' %}
 {% block user_details %}
+
+  <!-- Header image -->
+  <div class="col-12 mb-4">
+    <div class="user-header" style="background-image: url('{{ user.header_image_url }}'); height: 200px; background-size: cover;">
+    </div>
+  </div>
+
+  <!-- User profile details -->
+  <div class="col-sm-12 d-flex mb-4">
+    <img src="{{ user.image_url }}" alt="user image" class="timeline-image mr-3">
+    <div>
+      <h2>@{{ user.username }}</h2>
+      <p><strong>Bio:</strong> {{ user.bio or "This user hasn't written a bio yet!" }}</p>
+      <p><strong>Location:</strong> {{ user.location or "No location provided yet!" }}</p>
+    </div>
+  </div>
+
+  <!-- User stats including liked warbles. -->
+  <div class="col-sm-12">
+    <ul class="user-stats nav nav-pills">
+      <li class="stat">
+        <p class="small">Messages</p>
+        <h4>
+          <a href="/users/{{ user.id }}">{{ user.messages | length }}</a>
+        </h4>
+      </li>
+      <li class="stat">
+        <p class="small">Following</p>
+        <h4>
+          <a href="/users{{ user.id }}/following">{{ user.following | length }}</a>
+        </h4>
+      </li>
+      <li class="stat">
+        <p class="small">Followers</p>
+        <h4>
+          <a href="/users/{{ user.id }}/followers">{{ user.followers | length }}</a>
+        </h4>
+      </li>
+      <li class="stat">
+        <p class="small">Likes</p>
+        <h4>
+          <a href="/users/{{ user.id }}/likes">{{ likes_count | length }}</a>
+        </h4>
+      </li>
+    </ul>
+  </div>
+
+  <!-- User messages -->
   <div class="col-sm-6">
     <ul class="list-group" id="messages">
 
       {% for message in messages %}
 
         <li class="list-group-item">
-          <a href="/messages/{{ message.id }}" class="message-link"/>
+          <a href="/messages/{{ message.id }}" class="message-link"></a>
 
           <a href="/users/{{ user.id }}">
             <img src="{{ user.image_url }}" alt="user image" class="timeline-image">

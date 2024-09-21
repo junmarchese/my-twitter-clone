@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block content %}
+    <h2>@{{ user.username }}'s Liked Warbles</h2>
+
+    <ul class="list-group">
+        {% for msg in messages %}
+            <li class="list-group-item">
+                <a href="/users/{{ msg.user.id }}">
+                    <img src="{{ msg.user.image_url }}" alt="user image" class="timeline-image">
+                </a>
+                <div class="message-area">
+                    <a href="/users/{{ msg.user.id }}">@{{ msg.user.username }}</a>
+                    <span class="text-muted">{{ msg.timestamp.strftime('%d %B %Y') }}</span>
+                    <p>{{ msg.text }}</p>
+                </div>
+            </li>
+        {% endfor %}
+    </ul>
+{% endblock %}

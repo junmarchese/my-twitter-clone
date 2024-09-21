@@ -301,6 +301,12 @@ nav + .container {
   color: #657786;
 }
 
+.user-header {
+  width: 100%;
+  height: 200px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
 /* ==================== User cards on follower/following pages */
 
 .user-card {

@@ -29,24 +29,35 @@
           </li>
           <li class="stat">
             <p class="small">Likes</p>
-            <h4>TBD</h4>
+            <h4>
+              <a href="/users/{{ user.id }}/likes">{{ likes_count }}</a>
+            </h4>
           </li>
           <div class="ml-auto">
-            {% if g.user.id == user.id %}
-            <a href="/users/profile" class="btn btn-outline-secondary">Edit Profile</a>
-            <form method="POST" action="/users/delete" class="form-inline">
-              <button class="btn btn-outline-danger ml-2">Delete Profile</button>
-            </form>
+            {% if g.user and g.user.id == user.id %}
+              <a href="/users/profile" class="btn btn-outline-secondary">Edit Profile</a>
+              <form method="POST" action="/users/delete" class="form-inline">
+                {% if form %}
+                  {{ form.hidden_tag() }}
+                {% endif %}
+                <button class="btn btn-outline-danger ml-2">Delete Profile</button>
+              </form>
             {% elif g.user %}
-            {% if g.user.is_following(user) %}
-            <form method="POST" action="/users/stop-following/{{ user.id }}">
-              <button class="btn btn-primary">Unfollow</button>
-            </form>
-            {% else %}
-            <form method="POST" action="/users/follow/{{ user.id }}">
-              <button class="btn btn-outline-primary">Follow</button>
-            </form>
-            {% endif %}
+              {% if g.user.is_following(user) %}
+                <form method="POST" action="/users/stop-following/{{ user.id }}">
+                  {% if form %}
+                    {{ form.hidden_tag() }}
+                  {% endif %}
+                  <button class="btn btn-primary">Unfollow</button>
+                </form>
+              {% else %}
+                <form method="POST" action="/users/follow/{{ user.id }}">
+                  {% if form %}
+                    {{ form.hidden_tag() }}
+                  {% endif %}
+                  <button class="btn btn-outline-primary">Follow</button>
+                </form>
+              {% endif %}
             {% endif %}
           </div>
         </ul>
@@ -58,13 +69,9 @@
 <div class="row">
   <div class="col-sm-3">
     <h4 id="sidebar-username">@{{ user.username }}</h4>
-    <p>BIO HERE</p>
-    <p class="user-location"><span class="fa fa-map-marker"></span>LOCATION HERE</p>
+    <p><strong>Bio: </strong> {{ user.bio }}</p>
+    <p class="user-location"><strong>Location: </strong><span class="fa fa-map-marker"></span> {{ user.location }}</p>
   </div>
-
-  {% block user_details %}
-  {% endblock %}
-
 </div>
 
 {% endblock %}
